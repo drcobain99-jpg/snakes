@@ -218,6 +218,12 @@ summary{cursor:pointer;font-weight:700;padding:6px 0}
 .modal h2{font-family:var(--f-display);font-weight:400;font-size:28px;margin-bottom:10px}
 .rank-list li{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:17px;border-bottom:1px dashed var(--line)}
 .rank-list b{min-width:2.6em}
+html.fs{background:var(--bg)}
+html.fs .top{display:none}
+html.fs body{padding-block:8px 12px}
+html.fs .board{width:calc(var(--zoom,1) * min(100%, calc(88vh * var(--ar,1))))}
+html.fs .bscroll{max-height:96vh}
+.fsbtn{white-space:nowrap}
 </style>
 
 <header class="top">
@@ -279,6 +285,7 @@ summary{cursor:pointer;font-weight:700;padding:6px 0}
       <div class="bar">
         <span class="chip" id="playInfo"></span>
         <label class="zoom"><input type="checkbox" id="sndOn" checked> 소리</label>
+        <button class="btn fsbtn" id="fsBtn" data-act="fs" type="button">⛶ 전체화면</button>
         <label class="zoom">확대 <input type="range" class="zoomr" min="1" max="2.5" step=".25" value="1" aria-label="판 확대"></label>
       </div>
       <div class="bscroll"><div class="board play" id="pb"></div></div>
@@ -1044,8 +1051,10 @@ function act(a,t){
       if(G&&G.phase==='manual'&&setup.mode==='auto'){switchToAuto();}
       else if(G&&G.phase!=='setup'&&G.phase!=='over'){say(setup.mode==='auto'?'다음 차례부터 자동으로 걸어가요.':'다음 차례부터 직접 옮겨요.');}
       break;}
+    case 'fs':toggleFs();break;
     case 'start':
       if(!G||G.phase!=='setup')break;
+      if(!fsOn())enterFs();
       G.players.forEach((p,i)=>{p.name=displayName(setup.players[i]);if(p.el)p.el.title=p.name;});
       G.phase='idle';G.turn=0;G.log=[];say(`${G.players[0].name}부터 시작해요. 주사위를 굴려 보세요!`);
       syncAll();break;
@@ -1075,7 +1084,7 @@ document.addEventListener('change',e=>{
 document.addEventListener('keydown',e=>{
   const t=e.target;
   if(t.id==='ins-t'&&e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();if(ui.sel<board.cells.length)selectCell(ui.sel+1);return;}
-  if(e.key==='Escape'){if(!$('#modal').hidden)$('#modal').hidden=true;else if(ui.pend){ui.pend=null;renderEditBoard();drawToolBody();}}
+  if(e.key==='Escape'){if(pseudoFs&&$('#modal').hidden){exitFs();return;}if(!$('#modal').hidden)$('#modal').hidden=true;else if(ui.pend){ui.pend=null;renderEditBoard();drawToolBody();}}
   if((e.key==='Enter'||e.key===' ')&&t.id==='dice'){e.preventDefault();doRoll();}
 });
 /* 색칠 도구: 끌어서 칠하기 */
@@ -1086,6 +1095,33 @@ document.addEventListener('pointerdown',e=>{
 document.addEventListener('pointermove',e=>{if(painting)paintAt(e);});
 function endPaint(){if(painting){painting=false;lastPaint=0;save();}}
 document.addEventListener('pointerup',endPaint);document.addEventListener('pointercancel',endPaint);
+
+/* ---------- 전체화면 ---------- */
+let pseudoFs=false;
+const de=document.documentElement;
+function fsOn(){return !!(document.fullscreenElement||document.webkitFullscreenElement)||pseudoFs;}
+function fsSync(){
+  const on=fsOn();de.classList.toggle('fs',on);
+  const b=$('#fsBtn');if(b)b.textContent=on?'✕ 전체화면 끝내기':'⛶ 전체화면';
+}
+function enterFs(){
+  const req=de.requestFullscreen||de.webkitRequestFullscreen;
+  if(req){
+    try{const r=req.call(de);
+      if(r&&r.catch)r.catch(()=>{pseudoFs=true;fsSync();});
+    }catch(x){pseudoFs=true;}
+  }else pseudoFs=true;
+  fsSync();
+}
+function exitFs(){
+  pseudoFs=false;
+  const ex=document.exitFullscreen||document.webkitExitFullscreen;
+  if((document.fullscreenElement||document.webkitFullscreenElement)&&ex){try{const r=ex.call(document);if(r&&r.catch)r.catch(()=>{});}catch(x){}}
+  fsSync();
+}
+function toggleFs(){fsOn()?exitFs():enterFs();}
+document.addEventListener('fullscreenchange',fsSync);
+document.addEventListener('webkitfullscreenchange',fsSync);
 
 /* ---------- 시작 ---------- */
 load();applyZoom(1);$('#sndOn').checked=setup.sound!==false;SND.on=setup.sound!==false;drawEditAll();
